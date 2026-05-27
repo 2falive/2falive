@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trang Tạo Mã 2FA (TOTP)</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 400px; margin: 50px auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
+        input { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #218838; }
+        #result { font-size: 32px; font-weight: bold; text-align: center; margin-top: 20px; color: #007bff; letter-spacing: 5px;}
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsSHA/3.2.0/sha.js"></script>
+</head>
+<body>
+
+    <h2>Tạo Mã 2FA</h2>
+    <p><i>Lưu ý: Mã xử lý 100% trên trình duyệt của bạn, không gửi dữ liệu đi đâu.</i></p>
+    
+    <label for="secret">Nhập Secret Key (Base32):</label>
+    <input type="password" id="secret" placeholder="Ví dụ: JBSWY3DPEHPK3PXP">
+    
+    <button onclick="generateTOTP()">Tạo Mã</button>
+    
+    <div id="result">------</div>
+
+    <script>
+        // Hàm giải mã Base32 sang Hex
+        function base32tohex(base32) {
+            const base32chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+            let bits = "";
+            let hex = "";
+            for (let i = 0; i < base32.length; i++) {
+                const val = base32chars.indexOf(base32.charAt(i).toUpperCase());
+                if (val === -1) continue; // Bỏ qua ký tự không hợp lệ
+                bits += val.toString(2).padStart(5, '0');
+            }
+            for (let i = 0; i + 4 <= bits.length; i += 4) {
+                const chunk = bits.substr(i, 4);
+                hex = hex + parseInt(chunk, 2).toString(16);
+            }
+            return hex;
+        }
+
+        // Hàm tạo mã TOTP
+        function generateTOTP() {
+            let secret = document.getElementById('secret').value.replace(/\s+/g, '');
+            if (!secret) {
+                alert("Vui lòng nhập Secret Key!");
+                return;
+            }
+
+            try {
+                const key = base32tohex(secret);
+                // Tính toán thời gian (mỗi chu kỳ 30 giây)
+                const epoch = Math.round(new Date().getTime() / 1000.0);
+                const time = Math.floor(epoch / 30).toString(16).padStart(16, '0');
+
+                // Sử dụng jsSHA để tính HMAC-SHA1
+                const shaObj = new jsSHA("SHA-1", "HEX");
+                shaObj.setHMACKey(key, "HEX");
+                shaObj.update(time);
+                const hmac = shaObj.getHMAC("HEX");
+
+                // Lấy 6 số cuối theo chuẩn TOTP (RFC 6238)
+                const offset = parseInt(hmac.substring(hmac.length - 1), 16);
+                let otp = (parseInt(hmac.substr(offset * 2, 8), 16) & 0x7fffffff) + "";
+                otp = otp.substr(otp.length - 6, 6).padStart(6, '0');
+
+                document.getElementById('result').innerText = otp;
+            } catch (err) {
+                document.getElementById('result').innerText = "Lỗi!";
+                alert("Secret Key không hợp lệ. Đảm bảo bạn nhập đúng định dạng Base32.");
+            }
+        }
+    </script>
+</body>
+</html>
